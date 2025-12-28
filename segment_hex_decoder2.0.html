@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced 7-Segment Converter</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --panel-color: #2d2d2d;
+            --text-color: #e0e0e0;
+            --accent-color: #4CAF50;
+            --accent-hover: #45a049;
+            --led-off: #3a3a3a;
+            --led-on: #ff3333;
+            --led-glow: 0 0 15px rgba(255, 51, 51, 0.7);
+            --border-color: #444;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 { margin-bottom: 5px; }
+        p.subtitle { color: #aaa; margin-bottom: 30px; font-size: 0.9em; }
+
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+            align-items: flex-start;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        /* --- Panel Styles --- */
+        .panel {
+            background: var(--panel-color);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+
+        h3 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            font-size: 1em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+
+        /* --- SVG Display --- */
+        .display-box {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 250px;
+        }
+
+        svg {
+            width: 180px;
+            height: 280px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .segment {
+            fill: var(--led-off);
+            transition: fill 0.1s, filter 0.1s;
+            stroke: #2d2d2d;
+            stroke-width: 2px;
+        }
+        .segment:hover { fill: #555; }
+        .segment.active { fill: var(--led-on); filter: drop-shadow(var(--led-glow)); }
+        text { fill: #666; font-size: 14px; font-weight: bold; pointer-events: none; }
+
+        /* --- Configuration Controls --- */
+        .config-box { flex: 1; min-width: 300px; }
+        
+        .control-group { margin-bottom: 20px; }
+        .label-sm { display: block; font-size: 0.85em; color: #aaa; margin-bottom: 8px; }
+
+        /* Toggle Buttons */
+        .toggle-row { display: flex; background: #222; border-radius: 6px; padding: 4px; gap: 4px; }
+        .toggle-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.9em;
+            transition: 0.3s;
+            color: #777;
+        }
+        .toggle-btn.active { background: var(--accent-color); color: #fff; font-weight: bold; }
+
+        /* Bit Mapping Table */
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+        .mapping-table td { padding: 4px; }
+        .mapping-table select {
+            width: 100%;
+            background: #222;
+            color: #eee;
+            border: 1px solid #444;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        /* --- Result & Check --- */
+        .result-box { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 20px;}
+
+        .output-display {
+            font-family: 'Courier New', monospace;
+            font-size: 2.2em;
+            font-weight: bold;
+            background: #111;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            color: var(--accent-color);
+            border: 1px solid #333;
+        }
+
+        .check-input-group {
+            display: flex;
+            gap: 10px;
+        }
+        .check-input {
+            flex: 1;
+            background: #222;
+            border: 1px solid #444;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+        }
+        .check-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .check-btn:hover { background: var(--accent-color); }
+
+        .error-msg {
+            color: #ff4444;
+            font-size: 0.85em;
+            height: 20px; /* reserve space */
+            margin-top: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>7-Segment Tool</h1>
+    <p class="subtitle">Design, Map, Convert, and Verify.</p>
+
+    <div class="main-layout">
+
+        <div class="panel config-box">
+            <h3>Configuration</h3>
+            
+            <div class="control-group">
+                <span class="label-sm">POLARITY</span>
+                <div class="toggle-row">
+                    <div class="toggle-btn active" id="mode-cathode" onclick="setPolarity('cathode')">Common Cathode</div>
+                    <div class="toggle-btn" id="mode-anode" onclick="setPolarity('anode')">Common Anode</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <span class="label-sm">OUTPUT FORMAT</span>
+                <div class="toggle-row">
+                    <div class="toggle-btn active" id="fmt-hex" onclick="setFormat('hex')">Hex</div>
+                    <div class="toggle-btn" id="fmt-dec" onclick="setFormat('dec')">Decimal</div>
+                    <div class="toggle-btn" id="fmt-bin" onclick="setFormat('bin')">Binary</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <span class="label-sm">BIT MAPPING (Order of bits)</span>
+                <table class="mapping-table">
+                    <tr>
+                        <td>Bit 7: <select id="map-7" onchange="updateCalc()"></select></td>
+                        <td>Bit 6: <select id="map-6" onchange="updateCalc()"></select></td>
+                    </tr>
+                    <tr>
+                        <td>Bit 5: <select id="map-5" onchange="updateCalc()"></select></td>
+                        <td>Bit 4: <select id="map-4" onchange="updateCalc()"></select></td>
+                    </tr>
+                    <tr>
+                        <td>Bit 3: <select id="map-3" onchange="updateCalc()"></select></td>
+                        <td>Bit 2: <select id="map-2" onchange="updateCalc()"></select></td>
+                    </tr>
+                    <tr>
+                        <td>Bit 1: <select id="map-1" onchange="updateCalc()"></select></td>
+                        <td>Bit 0: <select id="map-0" onchange="updateCalc()"></select></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel display-box">
+            <svg viewBox="0 0 120 200">
+                <path id="seg-a" class="segment" d="M 20 10 L 90 10 L 80 20 L 30 20 Z" onclick="toggleSegment('a')" />
+                <text x="50" y="35">A</text>
+                <path id="seg-b" class="segment" d="M 90 10 L 100 20 L 95 80 L 85 70 Z" onclick="toggleSegment('b')" />
+                <text x="80" y="55">B</text>
+                <path id="seg-c" class="segment" d="M 85 100 L 95 90 L 100 150 L 90 160 Z" onclick="toggleSegment('c')" />
+                <text x="80" y="135">C</text>
+                <path id="seg-d" class="segment" d="M 20 160 L 90 160 L 80 150 L 30 150 Z" onclick="toggleSegment('d')" />
+                <text x="50" y="145">D</text>
+                <path id="seg-e" class="segment" d="M 20 160 L 10 150 L 15 90 L 25 100 Z" onclick="toggleSegment('e')" />
+                <text x="30" y="135">E</text>
+                <path id="seg-f" class="segment" d="M 25 70 L 15 80 L 10 20 L 20 10 Z" onclick="toggleSegment('f')" />
+                <text x="30" y="55">F</text>
+                <path id="seg-g" class="segment" d="M 25 85 L 85 85 L 90 95 L 30 95 Z" onclick="toggleSegment('g')" />
+                <text x="50" y="80">G</text>
+                <circle id="seg-dp" class="segment" cx="105" cy="155" r="8" onclick="toggleSegment('dp')" />
+                <text x="105" y="180" style="font-size: 10px;">DP</text>
+            </svg>
+        </div>
+
+        <div class="panel result-box">
+            
+            <div>
+                <h3>Calculated Value</h3>
+                <div class="output-display" id="output-value">0x00</div>
+            </div>
+
+            <div>
+                <h3>Double Check (Reverse)</h3>
+                <span class="label-sm">Enter a value (Hex, Dec, or Binary) to see it on the display:</span>
+                <div class="check-input-group">
+                    <input type="text" id="verify-input" class="check-input" placeholder="e.g. 0xFF, 255, 0b111...">
+                    <button class="check-btn" onclick="verifyValue()">Check</button>
+                </div>
+                <div class="error-msg" id="error-msg"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // State
+        const segments = { a: false, b: false, c: false, d: false, e: false, f: false, g: false, dp: false };
+        let polarity = 'cathode'; // 'cathode' or 'anode'
+        let format = 'hex'; // 'hex', 'dec', 'bin'
+        
+        // Segments list for dropdown generation
+        const segList = ['dp', 'g', 'f', 'e', 'd', 'c', 'b', 'a']; // Default standard order
+        const segNames = ['DP', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+
+        // Init Logic
+        window.onload = function() {
+            initDropdowns();
+            updateCalc();
+        };
+
+        function initDropdowns() {
+            // Populate the 8 select boxes
+            for(let i=7; i>=0; i--) {
+                const select = document.getElementById('map-' + i);
+                segList.forEach((seg, index) => {
+                    const option = document.createElement('option');
+                    option.value = seg;
+                    option.text = segNames[index] + " (Segment)";
+                    // Set default selection
+                    if(segList[7-i] === seg) option.selected = true; 
+                    select.appendChild(option);
+                });
+            }
+        }
+
+        function toggleSegment(id) {
+            segments[id] = !segments[id];
+            updateVisuals();
+            updateCalc();
+        }
+
+        function updateVisuals() {
+            for (const [key, isActive] of Object.entries(segments)) {
+                const el = document.getElementById('seg-' + key);
+                if (isActive) el.classList.add('active');
+                else el.classList.remove('active');
+            }
+        }
+
+        function setPolarity(mode) {
+            polarity = mode;
+            document.getElementById('mode-cathode').className = mode === 'cathode' ? 'toggle-btn active' : 'toggle-btn';
+            document.getElementById('mode-anode').className = mode === 'anode' ? 'toggle-btn active' : 'toggle-btn';
+            updateCalc();
+        }
+
+        function setFormat(fmt) {
+            format = fmt;
+            ['hex', 'dec', 'bin'].forEach(f => {
+                document.getElementById('fmt-' + f).className = (f === fmt) ? 'toggle-btn active' : 'toggle-btn';
+            });
+            updateCalc();
+        }
+
+        function getRawValue() {
+            // Calculate value based on dropdown mapping
+            let val = 0;
+            
+            // Loop through Bits 0 to 7
+            for(let i=0; i<8; i++) {
+                const assignedSeg = document.getElementById('map-' + i).value;
+                if(segments[assignedSeg]) {
+                    val |= (1 << i);
+                }
+            }
+            return val;
+        }
+
+        function updateCalc() {
+            let val = getRawValue();
+
+            // Apply Polarity Logic
+            if (polarity === 'anode') {
+                val = (~val) & 0xFF; // Invert for Anode
+            }
+
+            // Format Output
+            let text = "";
+            if (format === 'hex') {
+                text = "0x" + val.toString(16).toUpperCase().padStart(2, '0');
+            } else if (format === 'dec') {
+                text = val.toString(10);
+            } else if (format === 'bin') {
+                text = "0b" + val.toString(2).padStart(8, '0');
+            }
+
+            document.getElementById('output-value').innerText = text;
+        }
+
+        function verifyValue() {
+            const input = document.getElementById('verify-input').value.trim();
+            const errDiv = document.getElementById('error-msg');
+            let num = NaN;
+
+            // Simple parser
+            if (input.startsWith('0x') || input.startsWith('0X')) {
+                num = parseInt(input, 16);
+            } else if (input.startsWith('0b') || input.startsWith('0B')) {
+                num = parseInt(input.substring(2), 2);
+            } else {
+                num = parseInt(input, 10);
+            }
+
+            if (isNaN(num) || num < 0 || num > 255) {
+                errDiv.innerText = "Error: Please enter a value between 0 and 255 (0xFF).";
+                return;
+            }
+            errDiv.innerText = "";
+
+            // Apply Polarity Reverse Logic
+            let activeBits = num;
+            if (polarity === 'anode') {
+                activeBits = (~num) & 0xFF;
+            }
+
+            // Map bits back to segments based on dropdowns
+            // Reset all first
+            Object.keys(segments).forEach(k => segments[k] = false);
+
+            for(let i=0; i<8; i++) {
+                const assignedSeg = document.getElementById('map-' + i).value;
+                // Check if bit i is high
+                if ((activeBits >> i) & 1) {
+                    segments[assignedSeg] = true;
+                }
+            }
+
+            updateVisuals();
+            updateCalc(); // Refresh the main display text to match input
+        }
+    </script>
+</body>
+</html>
